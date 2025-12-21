@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Face & Hand Detailed</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+
+<style>
+html,body{
+  margin:0;
+  padding:0;
+  overflow:hidden;
+  background:black;
+}
+video,canvas{
+  position:fixed;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
+canvas{pointer-events:none;}
+</style>
+</head>
+<body>
+
+<video id="video" autoplay playsinline></video>
+<canvas id="canvas"></canvas>
+
+<script>
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+/* CAMERA */
+navigator.mediaDevices.getUserMedia({
+  video:{facingMode:"user"}
+}).then(stream=>{
+  video.srcObject=stream;
+  video.onloadedmetadata=()=>{
+    canvas.width=video.videoWidth;
+    canvas.height=video.videoHeight;
+  };
+});
+
+/* FACE MESH (جزئیات کامل) */
+const faceMesh = new FaceMesh({
+  locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
+});
+faceMesh.setOptions({
+  maxNumFaces:1,
+  refineLandmarks:true,
+  minDetectionConfidence:0.6,
+  minTrackingConfidence:0.6
+});
+
+/* HANDS (جزئیات کامل) */
+const hands = new Hands({
+  locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
+});
+hands.setOptions({
+  maxNumHands:2,
+  modelComplexity:1,
+  minDetectionConfidence:0.6,
+  minTrackingConfidence:0.6
+});
+
+let faceResult=null;
+let handResult=null;
+
+faceMesh.onResults(r=>faceResult=r);
+hands.onResults(r=>handResult=r);
+
+/* LOOP */
+async function draw(){
+  if(video.readyState===4){
+    await faceMesh.send({image:video});
+    await hands.send({image:video});
+  }
+
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  /* FACE – اسکلت کامل */
+  if(faceResult?.multiFaceLandmarks){
+    for(const face of faceResult.multiFaceLandmarks){
+      drawConnectors(ctx,face,FACEMESH_TESSELATION,
+        {color:"#00ffff",lineWidth:1});
+      drawConnectors(ctx,face,FACEMESH_CONTOURS,
+        {color:"#00ff00",lineWidth:2});
+    }
+  }
+
+  /* HANDS – اسکلت کامل */
+  if(handResult?.multiHandLandmarks){
+    for(const hand of handResult.multiHandLandmarks){
+      drawConnectors(ctx,hand,HAND_CONNECTIONS,
+        {color:"#00ff00",lineWidth:3});
+      drawLandmarks(ctx,hand,
+        {color:"#ff0000",radius:4});
+    }
+  }
+
+  requestAnimationFrame(draw);
+}
+
+draw();
+</script>
+
+</body>
+</html>
